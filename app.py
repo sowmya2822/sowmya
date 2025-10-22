@@ -1,142 +1,79 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# Importing the Dependencies
-
-# In[ ]:
-
-
-import numpy as np
+import streamlit as st
 import pandas as pd
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.cluster import KMeans
 
-
-# Data Collection & Analysis
-
-# In[ ]:
-
-
-# loading the data from csv file to a Pandas DataFrame
-customer_data = pd.read_csv('/content/Mall_Customers.csv')
-
-
-# In[ ]:
-
-
-# first 5 rows in the dataframe
-customer_data.head()
-
-
-# In[ ]:
-
-
-# finding the number of rows and columns
-customer_data.shape
-
-
-# In[ ]:
-
-
-# getting some informations about the dataset
-customer_data.info()
-
-
-# In[ ]:
-
-
-# checking for missing values
-customer_data.isnull().sum()
-
-
-# Choosing the Annual Income Column & Spending Score column
-
-# In[ ]:
-
-
-X = customer_data.iloc[:,[3,4]].values
-
-
-# In[ ]:
-
-
-print(X)
-
-
-# Choosing the number of clusters
-
-# WCSS  ->  Within Clusters Sum of Squares
-
-# In[ ]:
-
-
-# finding wcss value for different number of clusters
-
-wcss = []
-
-for i in range(1,11):
-  kmeans = KMeans(n_clusters=i, init='k-means++', random_state=42)
-  kmeans.fit(X)
-
-  wcss.append(kmeans.inertia_)
-
-
-# In[ ]:
-
-
-# plot an elbow graph
-
-sns.set()
-plt.plot(range(1,11), wcss)
-plt.title('The Elbow Point Graph')
-plt.xlabel('Number of Clusters')
-plt.ylabel('WCSS')
-plt.show()
-
-
-# Optimum Number of Clusters = 5
-
-# Training the k-Means Clustering Model
-
-# In[ ]:
-
-
-kmeans = KMeans(n_clusters=5, init='k-means++', random_state=0)
-
-# return a label for each data point based on their cluster
-Y = kmeans.fit_predict(X)
-
-print(Y)
-
-
-# 5 Clusters -  0, 1, 2, 3, 4
-
-# Visualizing all the Clusters
-
-# In[ ]:
-
-
-# plotting all the clusters and their Centroids
-
-plt.figure(figsize=(8,8))
-plt.scatter(X[Y==0,0], X[Y==0,1], s=50, c='green', label='Cluster 1')
-plt.scatter(X[Y==1,0], X[Y==1,1], s=50, c='red', label='Cluster 2')
-plt.scatter(X[Y==2,0], X[Y==2,1], s=50, c='yellow', label='Cluster 3')
-plt.scatter(X[Y==3,0], X[Y==3,1], s=50, c='violet', label='Cluster 4')
-plt.scatter(X[Y==4,0], X[Y==4,1], s=50, c='blue', label='Cluster 5')
-
-# plot the centroids
-plt.scatter(kmeans.cluster_centers_[:,0], kmeans.cluster_centers_[:,1], s=100, c='cyan', label='Centroids')
-
-plt.title('Customer Groups')
-plt.xlabel('Annual Income')
-plt.ylabel('Spending Score')
-plt.show()
-
-
-# In[ ]:
-
-
-
-
+# Title and Introduction
+st.title("Customer Segmentation App")
+st.write("""
+    Upload a CSV or Excel file containing customer data. This application uses KMeans clustering to analyze customer personality data.
+""")
+
+# File Upload
+uploaded_file = st.file_uploader("Choose a CSV or Excel file", type=['csv', 'xlsx'])
+
+if uploaded_file is not None:
+    # Load data
+    if uploaded_file.name.endswith('csv'):
+        data = pd.read_csv(uploaded_file)
+    elif uploaded_file.name.endswith('xlsx'):
+        data = pd.read_excel(uploaded_file, engine='openpyxl')
+
+    # Handling missing values
+    st.subheader('Handling Missing Values')
+    st.write("Original data shape:", data.shape)
+    st.write("Number of missing values before handling:", data.isnull().sum().sum())
+    
+    # Drop rows with any NaN values
+    data.dropna(inplace=True)
+
+    # Verify data integrity post handling missing values
+    st.write("Number of missing values after handling:", data.isnull().sum().sum())
+
+    # Display Data
+    if st.checkbox('Show raw data'):
+        st.subheader('Raw data')
+        st.write(data)
+
+    # Data Preprocessing
+    st.subheader('Data Preprocessing')
+    columns = data.columns.tolist()
+
+    # Convert string columns to integers
+    for col in columns:
+        if data[col].dtype == 'object':  # Check if column dtype is object (string)
+            encoder = LabelEncoder()
+            data[col] = encoder.fit_transform(data[col])
+
+    selected_columns = st.multiselect('Select columns for clustering', columns)
+
+    if selected_columns:
+        st.write(f"Selected columns for clustering: {selected_columns}")
+        if len(selected_columns) >= 2:
+            scaler = StandardScaler()
+            scaled_data = scaler.fit_transform(data[selected_columns])
+
+            # Clustering
+            st.subheader('Clustering')
+            num_clusters = st.slider('Select number of clusters', 2, 10, 3)
+            kmeans = KMeans(n_clusters=num_clusters)
+            data['Cluster'] = kmeans.fit_predict(scaled_data)
+
+            # Visualize Clusters
+            st.subheader('Cluster Visualization')
+            if len(selected_columns) >= 2:
+                fig, ax = plt.subplots()
+                sns.scatterplot(x=data[selected_columns[0]], y=data[selected_columns[1]], hue=data['Cluster'], palette='viridis', ax=ax)
+                st.pyplot(fig)
+            else:
+                st.write("Please select at least two columns for clustering visualization.")
+        else:
+            st.write("Please select at least two columns for clustering visualization.")
+    else:
+        st.write("Please select columns for clustering.")
+
+    # Footer
+    st.markdown("---")
+    st.write("© 2024 [Your Name]. All rights reserved.")
